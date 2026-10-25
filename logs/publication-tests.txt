@@ -1,0 +1,14 @@
+Publication validation - 2026-10-25
+Python 3.12 host; device runtime is Python 3.11.
+
+$ python -m unittest discover -s tests -p test_*.py
+<generated-test-session-id>
+............................................................
+----------------------------------------------------------------------
+Ran 60 tests in 0.560s
+
+OK
+
+$ node tests/test_home_polling.cjs
+PASS reconnect buttons refresh within one poll; background pause and foreground resume
+PASS two months, month navigation and server memo save

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no">
+<title>Kindle 本机主页</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#fff;color:#000;font:24px/1.4 sans-serif;-webkit-text-size-adjust:100%}main,section,header{display:block}main{padding:16px;max-width:600px;margin:auto}h1{font-size:29px;margin:0 0 8px}h2{font-size:25px;margin:12px 0}p{margin:12px 0}.small{font-size:19px}button,input,textarea,select{font:23px sans-serif;color:#000;background:#fff;border:2px solid #000;border-radius:0}button{min-height:54px;margin:5px 5px 5px 0;padding:8px 12px}button:disabled{color:#777;border-color:#aaa}input,textarea,select{max-width:100%;width:100%;padding:8px}textarea{height:110px}.pane{display:none}.pane.active{display:block}nav{display:block;border-top:2px solid #000;border-bottom:2px solid #000;margin:10px 0;padding:4px 0}.row button{width:46%}.status{min-height:68px;border:2px solid #000;padding:10px;margin:10px 0;font-size:21px}a{color:#000}
+</style></head><body><main>
+<header><h1>Kindle 本机主页</h1><button id="library">书库／看书</button><button id="rollback">退出主页</button></header>
+<nav><button id="tabVoice">语音</button><button id="tabMemo">备忘</button><button id="tabSettings">设置</button></nav>
+<section id="voice" class="pane active"><h2>语音会话</h2>
+<div class="row"><button id="beginSession">恢复自动连接</button><button id="endSession">暂停自动连接</button></div>
+<p id="audioStatus" class="status">正在检查服务…</p>
+<div class="row"><button id="record" disabled>开始录音</button><button id="stopRecord" disabled>保存录音</button><button id="playRecord" disabled>回放录音</button><button id="stopPlay" disabled>停止回放</button></div>
+<p class="small">进入会话后，录音和回放共用连接，也可边听边录。仅点击“开始录音”后才保存麦克风声音。</p>
+<p class="small">主页启动后自动连接已配对耳机，回放结束和返回书库后保持双工。耳机入盒后保留语音服务，等待取出后重连。每段录音最多 15 秒；暂停或退出可释放连接。</p>
+</section>
+<section id="memoPane" class="pane"><h2>备忘录</h2><textarea id="memo" maxlength="600"></textarea><button id="save">保存备忘</button><span id="saveStatus" class="small"></span><h2>倒计时</h2><input id="target" type="text" maxlength="10" placeholder="YYYY-MM-DD"><button id="setDate">保存日期</button><p id="countdown"></p></section>
+<section id="settingsPane" class="pane"><h2>设备设置</h2><button id="settings">原系统设置</button><button id="pair">配对耳机</button><button id="refreshDevices">显示已配对耳机</button><select id="devices"></select><button id="selectDevice">选择耳机</button><p id="menuStatus" class="small">仅手动启动。当前仍需保持 Wi-Fi 连接。</p><h2>页面</h2><button id="tap">点击测试：0</button><button id="reload">重新载入</button><p class="small">主页已关闭捏合与双击缩放，减少自动更新。备忘请先保存再重新载入。</p><p class="small"><a href="legacy">旧版录音测试页</a></p></section>
+</main><script>
+(function(){
+var token='__TOKEN__',timer=null,pending=false,paused=false,last={busy:false,session:false},taps=0,fastUntil=0;
+function el(id){return document.getElementById(id);}function put(id,s){if(el(id).textContent!==s)el(id).textContent=s;}
+function disabled(id,v){v=!!v;if(el(id).disabled!==v)el(id).disabled=v;}
+function pane(id){var ids=['voice','memoPane','settingsPane'];for(var i=0;i<ids.length;i++)el(ids[i]).className='pane'+(ids[i]===id?' active':'');window.scrollTo(0,0);}
+el('tabVoice').onclick=function(){pane('voice');};el('tabMemo').onclick=function(){pane('memoPane');};el('tabSettings').onclick=function(){pane('settingsPane');};
+function view(s){
+ last=s;var ready=s.session&&s.state==='session_ready'&&!s.exit_pending;
+ var text=s.state==='waiting_headset'?'语音服务保持中，等待耳机取出后重连。':s.state==='connecting'?'正在自动连接耳机…':s.state==='restoring'?'正在安全释放音频，请稍候…':s.state==='error'?'未完成：'+(s.error||'请重试'):ready?(s.recording?'正在录音':s.playing?'正在回放':'双工已连接，随时可以录音或回放')+(s.recording&&s.playing?'，同时回放中':''):s.auto_connect?'等待耳机，取出后会自动尝试连接。':'自动连接已暂停。';
+ if(s.audio_disabled)text='音频暂时停用，正在排查恢复故障。书库和备忘可正常使用。';
+ if(s.exit_pending)text='正在结束会话并恢复播放，完成后返回书库…';
+ put('audioStatus',text);
+ disabled('beginSession',s.auto_connect||s.audio_disabled||s.exit_pending);disabled('endSession',!s.auto_connect||s.exit_pending);
+ disabled('record',!ready||s.recording);disabled('stopRecord',!ready||!s.recording);
+ disabled('playRecord',!ready||!s.available||s.playing);disabled('stopPlay',!ready||!s.playing);
+ disabled('library',s.exit_pending);disabled('rollback',s.exit_pending);disabled('pair',s.busy||s.audio_disabled);
+}
+function request(path,method,done,data){
+ var x=new XMLHttpRequest(),finished=false;
+ function finish(){if(finished)return;finished=true;clearTimeout(deadline);var body={};try{body=JSON.parse(x.responseText);}catch(e){}done(x.status,body);}
+ x.open(method,path,true);if(method==='POST')x.setRequestHeader('X-KT3-Token',token);
+ x.onreadystatechange=function(){if(x.readyState===4)finish();};var deadline=setTimeout(function(){x.abort();finish();},12000);x.send(data||null);
+}
+function poll(){if(paused)return;if(pending){clearTimeout(timer);timer=setTimeout(poll,250);return;}pending=true;request('api/audio/status','GET',function(code,s){pending=false;if(code===200)view(s);else put('audioStatus','服务暂不可用；故障恢复仍独立运行。');clearTimeout(timer);if(!paused)timer=setTimeout(poll,Date.now()<fastUntil?250:(last.auto_connect||last.recording||last.playing||last.state==='restoring'?1000:10000));});}
+function pausePage(){paused=true;clearTimeout(timer);}
+function resumePage(){paused=false;fastUntil=Date.now()+2500;clearTimeout(timer);poll();}
+function action(path){clearTimeout(timer);fastUntil=Date.now()+2500;put('audioStatus','正在处理…');request(path,'POST',function(code,s){if(code===202||code===200||code===409){if(s.state)view(s);}else put('audioStatus',s.error||'操作暂不可用，请稍后重试。');clearTimeout(timer);timer=setTimeout(poll,150);});}
+el('beginSession').onclick=function(){el('beginSession').disabled=true;put('audioStatus','正在准备语音会话…');action('api/audio/session');};
+el('endSession').onclick=function(){action('api/session/close');};el('record').onclick=function(){action('api/session/record');};el('stopRecord').onclick=function(){action('api/session/stop');};el('playRecord').onclick=function(){action('api/session/play');};el('stopPlay').onclick=function(){action('api/session/stop_play');};
+function menu(name){action('api/menu/'+name);}el('library').onclick=function(){menu('library');};el('rollback').onclick=function(){menu('rollback');};el('settings').onclick=function(){menu('settings');};el('pair').onclick=function(){menu('pair');};
+el('refreshDevices').onclick=function(){request('api/devices','GET',function(code,d){if(code!==200)return;var s=el('devices');while(s.firstChild)s.removeChild(s.firstChild);for(var i=0;i<d.devices.length;i++){var o=document.createElement('option');o.value=d.devices[i].address;o.textContent=d.devices[i].name;o.selected=o.value===d.selected;s.appendChild(o);}});};
+el('selectDevice').onclick=function(){request('api/select','POST',function(code){put('menuStatus',code===200?'已选择耳机。':'请先结束会话，再选择耳机。');},JSON.stringify({address:el('devices').value}));};
+try{el('memo').value=localStorage.getItem('kt3-memo')||'';el('target').value=localStorage.getItem('kt3-target')||'';}catch(e){}
+el('save').onclick=function(){try{localStorage.setItem('kt3-memo',el('memo').value);put('saveStatus','已保存');}catch(e){put('saveStatus','保存失败');}};
+function date(){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(el('target').value);if(!m)return put('countdown','请输入 YYYY-MM-DD');var d=new Date(+m[1],+m[2]-1,+m[3]),n=new Date();if(d.getFullYear()!=+m[1]||d.getMonth()!=+m[2]-1||d.getDate()!=+m[3])return put('countdown','日期无效');var days=Math.round((Date.UTC(+m[1],+m[2]-1,+m[3])-Date.UTC(n.getFullYear(),n.getMonth(),n.getDate()))/86400000);put('countdown',days>0?'还有 '+days+' 天':days===0?'就是今天':'已过去 '+(-days)+' 天');try{localStorage.setItem('kt3-target',el('target').value);}catch(e){}}
+el('setDate').onclick=date;if(el('target').value)date();el('tap').onclick=function(){put('tap','点击测试：'+(++taps));};el('reload').onclick=function(){window.location.reload();};
+window.onunload=function(){clearTimeout(timer);};poll();
+var beacon=new Image();beacon.src='cgi-bin/report.sh?action=session-page-v2';
+})();
+</script></body></html>

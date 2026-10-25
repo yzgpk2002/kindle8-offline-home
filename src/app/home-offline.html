@@ -1,0 +1,83 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no"><title>Kindle 本机主页</title><style>
+*{box-sizing:border-box}body{margin:0;background:#fff;color:#000;font:20px/1.35 sans-serif;-webkit-text-size-adjust:100%}main,section,header{display:block}main{padding:10px;max-width:600px;margin:auto}header{height:52px;border-bottom:2px solid;text-align:center}h1{display:inline;font-size:24px;line-height:44px}h2{font-size:23px;margin:8px 0}button,input,textarea,select{font:20px sans-serif;color:#000;background:white;border:1px solid black;border-radius:0}button{min-height:40px;padding:4px 8px;margin:2px}button:disabled{color:#888;border-color:#bbb}button.selected{background:black;color:white}#library{float:left}#rollback{float:right}textarea{display:block;width:100%;padding:6px;resize:none;height:64px}section{border-bottom:2px solid;padding-bottom:8px}.months{width:100%;table-layout:fixed;border-collapse:collapse}.monthWrap{width:50%;vertical-align:top;padding:0 3px}.month{width:100%;border-collapse:collapse;table-layout:fixed}.month caption{font-size:20px;font-weight:bold;padding:4px}.month th{font-size:15px;font-weight:normal}.month td{height:32px;text-align:center}.month button{width:100%;height:32px;min-height:32px;padding:0;margin:0;border:0;font-size:19px}.month .today{outline:1px solid;outline-offset:-2px}.month .hasMemo{font-weight:bold;text-decoration:underline}.calnav{text-align:center;height:38px}.calnav button{min-height:32px;font-size:18px}.left{float:left}.right{float:right}.small{font-size:17px}.hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:25px;font-size:18px;margin:4px 0}.recorder{border:2px solid;padding:5px;margin:6px 0}.recorder button{min-width:22%;margin:0 1% 0 0}.menus button{font-size:18px;min-height:36px}.hidden{display:none!important}.list{max-height:200px;overflow:auto;border-top:1px solid;padding-top:5px}.list button{display:block;width:98%;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.memohead{height:37px;font-size:18px;line-height:34px}#save{float:right;min-height:32px;font-size:18px}#answer{white-space:pre-wrap;max-height:220px;overflow:auto;font-size:20px;margin:4px 0}#question{height:56px}#devices{width:100%;height:40px}a{color:black}
+</style></head><body><main>
+<header><button id="library">书库／看书</button><h1>我的桌面</h1><button id="rollback">退出主页</button></header>
+<section id="memoPane"><div class="calnav"><button id="previous" class="left">‹ 上月</button><button id="today">今天</button><button id="next" class="right">下月 ›</button></div><table class="months"><tr><td id="month0" class="monthWrap"></td><td id="month1" class="monthWrap"></td></tr></table><div class="memohead"><span id="selectedDate"></span><span id="saveStatus"></span><button id="save">保存备忘</button></div><textarea id="memo" maxlength="2000" placeholder="写下这一天的备忘…"></textarea></section>
+<section id="voice"><h2>录音机</h2><div class="recorder"><button id="record" disabled>● 录音</button><button id="stopRecord" disabled>■ 保存</button><button id="playRecord" disabled>▶ 回放</button><button id="stopPlay" disabled>停止</button></div><div class="menus"><button id="recordings">录音列表</button><button id="music">本地音乐</button><button id="tabSettings">设置</button></div><p id="audioStatus" class="hint">正在检查耳机…</p><div id="mediaList" class="list hidden"></div><p id="mediaStatus" class="hint hidden"></p>
+<div id="settingsPane" class="hidden"><button id="beginSession">恢复自动连接</button><button id="endSession">暂停自动连接</button><button id="settings">系统设置</button><button id="pair">配对耳机</button><button id="refreshDevices">耳机列表</button><select id="devices"></select><button id="selectDevice">使用此耳机</button><button id="tap">点击测试：0</button><button id="reload">刷新页面</button><p id="menuStatus" class="small">手动启动；本机录放与看书无需联网。</p></div></section>
+<section id="qqPanel"><h2>QQ 音乐</h2><div class="menus"><button id="qqOpen">打开官网</button><button id="qqLocal">本地歌曲</button><button id="qqStop">停止本地播放</button></div><p class="hint">官网可显示，点歌暂不可用；本地支持 MP3/WAV</p><div id="musicList" class="list hidden"></div><p id="musicStatus" class="hint hidden"></p></section>
+<section id="ai"><h2>DeepSeek · 文本</h2><textarea id="question" maxlength="2000" placeholder="输入问题；配置 API Key 后即可发送"></textarea><div class="menus"><button id="textSend" disabled>发送</button><button id="textClear">新对话</button><button id="textRefresh">检查配置</button></div><p id="aiStatus" class="hint">尚未配置 API Key</p><div id="answer"></div></section>
+<div class="hidden"><button id="tabVoice"></button><button id="tabMemo"></button><input id="target"><button id="setDate"></button><p id="countdown"></p></div>
+</main><script>
+(function(){
+var beacons=[];
+var token='__TOKEN__',timer=null,pending=false,paused=false,last={busy:false,session:false},taps=0,fastUntil=0;
+function el(id){return document.getElementById(id);}function put(id,s){if(el(id).textContent!==s)el(id).textContent=s;}
+function disabled(id,v){v=!!v;if(el(id).disabled!==v)el(id).disabled=v;}
+function pane(id){var ids=['voice','memoPane','settingsPane'];for(var i=0;i<ids.length;i++)el(ids[i]).className='pane'+(ids[i]===id?' active':'');window.scrollTo(0,0);}
+el('tabVoice').onclick=function(){pane('voice');};el('tabMemo').onclick=function(){pane('memoPane');};el('tabSettings').onclick=function(){pane('settingsPane');};
+function view(s){
+ var wasReady=last.session&&last.state==='session_ready';last=s;var ready=s.session&&s.state==='session_ready'&&!s.exit_pending;
+ var text=s.state==='waiting_headset'?'语音服务保持中，等待耳机取出后重连。':s.state==='connecting'?'正在自动连接耳机…':s.state==='restoring'?'正在安全释放音频，请稍候…':s.state==='error'?'未完成：'+(s.error||'请重试'):ready?(s.recording?'正在录音':s.playing?'正在回放':'双工已连接，随时可以录音或回放')+(s.recording&&s.playing?'，同时回放中':''):s.auto_connect?'等待耳机，取出后会自动尝试连接。':'自动连接已暂停。';
+ if(s.audio_disabled)text='音频暂时停用，正在排查恢复故障。书库和备忘可正常使用。';
+ if(s.exit_pending)text='正在结束会话并恢复播放，完成后返回书库…';
+ text=s.recording?'正在录音 · 最长15秒':s.playing?'正在播放':ready?'耳机已连接':s.audio_disabled?'音频暂不可用':s.exit_pending?'正在退出':s.state==='restoring'?'正在释放音频':s.auto_connect?'等待耳机连接':'连接已暂停';put('audioStatus',text);if(ready&&!wasReady)report('record-ready');
+ disabled('beginSession',s.auto_connect||s.audio_disabled||s.exit_pending);disabled('endSession',!s.auto_connect||s.exit_pending);
+ disabled('record',!ready||s.recording);disabled('stopRecord',!ready||!s.recording);
+ disabled('playRecord',!ready||!s.available||s.playing);disabled('stopPlay',!ready||!s.playing);
+ disabled('library',s.exit_pending);disabled('rollback',s.exit_pending);disabled('pair',s.busy||s.audio_disabled);
+}
+function request(path,method,done,data){
+ var x=new XMLHttpRequest(),finished=false;
+ function finish(){if(finished)return;finished=true;clearTimeout(deadline);var body={};try{body=JSON.parse(x.responseText);}catch(e){}done(x.status,body);}
+ x.open(method,'http://127.0.0.1:8083/'+path,true);if(method==='POST')x.setRequestHeader('X-KT3-Token',token);
+ x.onreadystatechange=function(){if(x.readyState===4)finish();};var deadline=setTimeout(function(){x.abort();finish();},12000);x.send(data||null);
+}
+function poll(){if(paused)return;if(pending){clearTimeout(timer);timer=setTimeout(poll,250);return;}pending=true;request('api/audio/status','GET',function(code,s){pending=false;if(code===200)view(s);else put('audioStatus','服务暂不可用；故障恢复仍独立运行。');clearTimeout(timer);if(!paused)timer=setTimeout(poll,Date.now()<fastUntil?250:(last.auto_connect||last.recording||last.playing||last.state==='restoring'?1000:10000));});}
+function pausePage(){paused=true;clearTimeout(timer);clearTimeout(textTimer);}
+function resumePage(){paused=false;fastUntil=Date.now()+2500;clearTimeout(timer);poll();if(textBusy)textStatus();}
+function action(path){report(path.replace(/\//g,'-'));clearTimeout(timer);fastUntil=Date.now()+2500;put('audioStatus','正在处理…');request(path,'POST',function(code,s){if(code===202||code===200||code===409){if(s.state)view(s);}else put('audioStatus',s.error||'操作暂不可用，请稍后重试。');clearTimeout(timer);timer=setTimeout(poll,150);});}
+el('beginSession').onclick=function(){el('beginSession').disabled=true;put('audioStatus','正在准备语音会话…');action('api/audio/session');};
+el('endSession').onclick=function(){action('api/session/close');};el('record').onclick=function(){action('api/session/record');};el('stopRecord').onclick=function(){action('api/session/stop');};el('playRecord').onclick=function(){action('api/session/play');};el('stopPlay').onclick=function(){action('api/session/stop_play');};
+function menu(name){action('api/menu/'+name);}el('library').onclick=function(){menu('library');};el('rollback').onclick=function(){menu('rollback');};el('settings').onclick=function(){menu('settings');};el('pair').onclick=function(){menu('pair');};
+el('refreshDevices').onclick=function(){request('api/devices','GET',function(code,d){if(code!==200)return;var s=el('devices');while(s.firstChild)s.removeChild(s.firstChild);for(var i=0;i<d.devices.length;i++){var o=document.createElement('option');o.value=d.devices[i].address;o.textContent=d.devices[i].name;o.selected=o.value===d.selected;s.appendChild(o);}});};
+el('selectDevice').onclick=function(){request('api/select','POST',function(code){put('menuStatus',code===200?'已选择耳机。':'请先结束会话，再选择耳机。');},JSON.stringify({address:el('devices').value}));};
+var now=new Date(),month=new Date(now.getFullYear(),now.getMonth(),1),selected=dateKey(now),memos={},dirty=false,memoReady=false,saveGeneration=0;
+function dateKey(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function post(path,data,done){request(path,'POST',done,JSON.stringify(data));}
+function calendar(){for(var m=0;m<2;m++){var d=new Date(month.getFullYear(),month.getMonth()+m,1),count=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(),first=(d.getDay()+6)%7,html='<table class="month"><caption>'+d.getFullYear()+' / '+(d.getMonth()+1)+'</caption><tr>',names=['一','二','三','四','五','六','日'];for(var i=0;i<7;i++)html+='<th>'+names[i]+'</th>';html+='</tr>';for(var c=0;c<42;c++){if(c%7===0)html+='<tr>';var n=c-first+1;html+='<td>';if(n>0&&n<=count){var k=dateKey(new Date(d.getFullYear(),d.getMonth(),n));html+='<button data-day="'+k+'" class="'+(k===selected?'selected ':'')+(k===dateKey(now)?'today ':'')+(memos[k]?'hasMemo':'')+'">'+n+'</button>';}html+='</td>';if(c%7===6)html+='</tr>';}el('month'+m).innerHTML=html+'</table>';}put('selectedDate',selected+' ');}
+function saveMemo(done){if(!memoReady)return;var day=selected,text=el('memo').value,g=++saveGeneration;put('saveStatus','保存中');disabled('save',true);post('api/memos',{date:day,text:text},function(code){disabled('save',false);if(code===200){memos[day]=text;if(g===saveGeneration&&day===selected&&el('memo').value===text)dirty=false;put('saveStatus','已保存');calendar();if(done&&!dirty)done();}else put('saveStatus','保存失败');});}
+function selectDay(day){function change(){selected=day;el('memo').value=memos[day]||'';dirty=false;put('saveStatus','');calendar();}if(dirty)saveMemo(change);else change();}
+function dateClick(e){var t=(e||window.event).target;if(t&&t.getAttribute){var d=t.getAttribute('data-day');if(d)selectDay(d);}}
+el('month0').onclick=dateClick;el('month1').onclick=dateClick;el('previous').onclick=function(){month=new Date(month.getFullYear(),month.getMonth()-1,1);calendar();};el('next').onclick=function(){month=new Date(month.getFullYear(),month.getMonth()+1,1);calendar();};el('today').onclick=function(){month=new Date(now.getFullYear(),now.getMonth(),1);selectDay(dateKey(now));};el('memo').oninput=function(){dirty=true;put('saveStatus','未保存');};el('save').onclick=function(){saveMemo();};calendar();disabled('save',true);
+request('api/memos','GET',function(code,b){if(code!==200)return put('saveStatus','读取失败');memos=b.memos||{};memoReady=true;disabled('save',false);if(!dirty)el('memo').value=memos[selected]||'';try{if(!el('memo').value&&localStorage.getItem('kt3-memo')){el('memo').value=localStorage.getItem('kt3-memo');dirty=true;put('saveStatus','旧备忘待保存');}}catch(e){}calendar();});
+el('tabSettings').onclick=function(){el('settingsPane').className=el('settingsPane').className==='hidden'?'':'hidden';};
+function leave(which){var go=function(){action('api/menu/'+which);};if(dirty)saveMemo(go);else go();}el('library').onclick=function(){leave('library');};el('rollback').onclick=function(){leave('rollback');};el('reload').onclick=function(){if(dirty)saveMemo(function(){window.location.reload();});else window.location.reload();};
+function files(kind){var listId=kind==='music'?'musicList':'mediaList',statusId=kind==='music'?'musicStatus':'mediaStatus';el(listId).className='list';el(statusId).className='hint';put(statusId,'正在读取…');request('api/media?kind='+kind,'GET',function(code,b){var box=el(listId);while(box.firstChild)box.removeChild(box.firstChild);if(code!==200)return put(statusId,'读取失败');put(statusId,b.items.length?b.items.length+' 个文件':kind==='music'?'音乐放入 '+b.folder:'暂无录音');for(var i=0;i<b.items.length;i++){(function(item){var button=document.createElement('button');button.textContent=(kind==='recordings'?new Date(item.modified*1000).toLocaleString():item.name)+' ▶';button.onclick=function(){put(statusId,'正在准备播放…');post('api/media/play',{kind:kind,id:item.id},function(c,d){put(statusId,c===200?'已提交播放':d.error||'播放未完成');if(c===200)mediaPoll(statusId);});};box.appendChild(button);})(b.items[i]);}});}
+function mediaPoll(statusId){statusId=statusId||'mediaStatus';request('api/media/status','GET',function(code,b){if(code!==200)return;put(statusId,b.state==='error'?b.error:b.state==='playing'?'正在播放':'正在转换音频…');if(b.state==='preparing'&&!paused)setTimeout(function(){mediaPoll(statusId);},1500);});}
+el('recordings').onclick=function(){files('recordings');};el('music').onclick=function(){files('music');};el('stopPlay').onclick=function(){post('api/media/cancel',{},function(){});action('api/session/stop_play');};
+el('tap').onclick=function(){put('tap','点击测试：'+(++taps));};
+var textTimer=null,textBusy=false,textPending=false;
+function textStatus(){if(paused||textPending)return;textPending=true;request('api/text/status','GET',function(code,b){textPending=false;if(code!==200)return put('aiStatus','文本服务暂不可用');textBusy=!!b.busy;disabled('textSend',!b.configured||textBusy);put('aiStatus',!b.configured?'尚未配置 API Key':b.error||textBusy&&'正在回答…'||'可以发送；联网调用按量计费');var out=[],messages=b.messages||[];for(var i=0;i<messages.length;i++)out.push((messages[i].role==='user'?'我：':'DeepSeek：')+messages[i].content);put('answer',out.join('\n\n'));clearTimeout(textTimer);if(textBusy&&!paused)textTimer=setTimeout(textStatus,1800);});}
+el('textSend').onclick=function(){disabled('textSend',true);put('aiStatus','正在提交…');post('api/text/send',{text:el('question').value},function(c,b){if(c===200){el('question').value='';try{localStorage.removeItem('kt3-text-draft');}catch(e){}textStatus();}else{put('aiStatus',b.error||'提交失败');disabled('textSend',false);}});};
+el('textClear').onclick=function(){post('api/text/clear',{},function(c){if(c===200){put('answer','');textStatus();}});};
+el('textRefresh').onclick=textStatus;
+el('question').oninput=function(){try{localStorage.setItem('kt3-text-draft',el('question').value);}catch(e){}};
+try{el('question').value=localStorage.getItem('kt3-text-draft')||'';}catch(e){}
+el('qqOpen').onclick=function(){request('api/menu/qqmusic','POST',function(c){if(c!==202)put('musicStatus','官网打开失败');});};
+el('qqLocal').onclick=function(){files('music');};el('qqStop').onclick=el('stopPlay').onclick;
+textStatus();
+var previousButton=document.createElement('button');previousButton.textContent='回滚旧版主页';previousButton.onclick=function(){if(window.confirm('恢复升级前主页，并返回书库？录音和备忘会保留。'))request('api/menu/previous','POST',function(code,b){put('menuStatus',code===202?'正在退出并回滚':b.error||'回滚未执行');});};el('settingsPane').appendChild(previousButton);
+
+window.onunload=function(){clearTimeout(timer);};poll();
+
+function report(s){var b=new Image();beacons.push(b);b.onload=b.onerror=function(){var i=beacons.indexOf(b);if(i>=0)beacons.splice(i,1);};b.src='http://127.0.0.1:8083/cgi-bin/report.sh?action=offline-home&xhr='+encodeURIComponent(s)+'&t='+Date.now();}
+function enteredPage(){
+ if(typeof kindle.appmgr.saveContext==='function'){kindle.appmgr.saveContext('page=voice');report('context-saved');}
+ resumePage();
+}
+if(typeof kindle!=='undefined'&&kindle.appmgr){kindle.appmgr.onload=resumePage;kindle.appmgr.ongo=enteredPage;kindle.appmgr.onpause=pausePage;kindle.appmgr.onunload=pausePage;}
+el('record').onmousedown=function(){report('record-pointer');};
+report('loaded');
+})();
+</script></body></html>

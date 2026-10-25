@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>桌面一页</title>
+<style>
+main,header,section{display:block}
+*{box-sizing:border-box}body{margin:0;background:#fff;color:#000;font:24px/1.45 sans-serif}main{max-width:600px;margin:0 auto;padding:20px}header{border-bottom:3px solid #000;padding-bottom:12px}h1{font-size:32px;margin:0}h2{font-size:25px;margin:0 0 10px}p{margin:8px 0}.small{font-size:18px}.section{border-bottom:2px solid #000;padding:16px 0}.weather{font-size:36px;font-weight:bold}.muted{color:#333}label{display:block;font-size:20px}textarea,input,button{font:22px sans-serif;color:#000;background:white;border:2px solid #000;border-radius:0}textarea{display:block;width:100%;height:92px;padding:8px}input{width:100%;padding:8px}button{min-height:48px;padding:8px 14px;margin:9px 8px 0 0}.status{font-size:17px;word-wrap:break-word}#countdown{font-size:28px;font-weight:bold}noscript{display:block;border:3px solid #000;padding:12px}a{color:#000}
+</style></head><body><main>
+<header><h1>Kindle 桌面</h1><div id="today" class="small">本机运行 · 不需要电脑或 USB</div><button id="library" type="button">书库／看书</button><button id="settings" type="button">系统设置</button><button id="pair" type="button">配对蓝牙耳机</button><button id="rollback" type="button">退出并停用主页</button><button id="connect" type="button">连接耳机</button><p id="menuStatus" class="small">手动测试版，开机不自启。请保持 Wi-Fi 连接。</p><select id="devices" style="max-width:100%;font-size:20px"></select><button id="refreshDevices" type="button">刷新已配对耳机</button><button id="selectDevice" type="button">用于录音</button><p class="small"><a href="#voice">语音备忘</a> · <a href="#memo">文字备忘</a> · <a href="#target">倒计时</a></p></header>
+<noscript>页面已打开，但 JavaScript 未运行。请检查浏览器设置。</noscript>
+<section class="section" id="voice"><h2>语音备忘</h2><button id="record" type="button">开始录音</button><button id="stopRecord" type="button" disabled>结束录音</button><button id="playRecord" type="button" disabled>回放录音</button><button id="duplex" type="button">双工测试（15秒）</button><button id="audioTest" type="button">播放测试音</button><p id="audioStatus" class="small">正在检查耳机服务…</p><p class="small">准备完成后再说话，每次最多录制 15 秒。录音结束后自动恢复耳机播放。请保持耳机连接；服务在 Kindle 本机运行，网页其他功能可照常使用。</p></section>
+<section class="section"><h2>今日天气</h2><div class="weather">— °C</div><p class="small muted">尚未接入天气数据 · 这里不展示模拟实况</p></section>
+<section class="section"><h2>备忘录</h2><label for="memo">今天想记住什么？</label><textarea id="memo" maxlength="600" placeholder="例如：下班前整理桌面"></textarea><button id="save" type="button">保存备忘</button><span id="saveStatus" class="small">仅保存到本机浏览器</span></section>
+<section class="section"><h2>倒计时</h2><label for="target">目标日期（YYYY-MM-DD）</label><input id="target" type="text" value="" maxlength="10"><button id="setDate" type="button">设置日期</button><p id="countdown">请选择一个日期</p></section>
+<section class="section"><h2>触摸与兼容性</h2><button id="tap" type="button">点击测试：0</button><button id="reload" type="button">重新载入</button><p id="diagnostics" class="status">HTML 已显示；等待 JavaScript 初始化。</p><p class="small">保存备忘后重新载入，检查文字是否保留。页面没有动画，不自动刷新。</p></section>
+
+</main><script>
+(function(){
+var taps=0,storage=false,xhrStatus='未测试',beacons=[],lastAction='load',token='__TOKEN__';
+function el(id){return document.getElementById(id);}function put(id,text){if(el(id).textContent!==text)el(id).textContent=text;}
+function dateText(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function report(action){lastAction=action;var i=new Image();beacons.push(i);i.src='cgi-bin/report.sh?action='+encodeURIComponent(action)+'&storage='+(storage?'1':'0')+'&xhr='+encodeURIComponent(xhrStatus)+'&taps='+taps+'&width='+(window.innerWidth||0)+'&height='+(window.innerHeight||0)+'&t='+new Date().getTime();}
+function status(){put('diagnostics','JavaScript 正常 · 本地保存'+(storage?'可用':'不可用')+' · HTTP请求：'+xhrStatus);}
+function save(key,value){try{if(!storage)return false;localStorage.setItem(key,value);return true;}catch(e){storage=false;status();return false;}}
+function countdown(){var s=el('target').value,m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);if(!m){put('countdown','请输入 YYYY-MM-DD');return false;}var d=new Date(+m[1],+m[2]-1,+m[3]);if(d.getFullYear()!=+m[1]||d.getMonth()!=+m[2]-1||d.getDate()!=+m[3]){put('countdown','日期不存在，请重新输入');return false;}var n=new Date();var days=Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(n.getFullYear(),n.getMonth(),n.getDate()))/86400000);put('countdown',days>0?'还有 '+days+' 天':days===0?'就是今天':'已过去 '+(-days)+' 天');return true;}
+put('today',dateText(new Date())+' · 安静地看见重要的事');
+try{localStorage.setItem('kt3-test-probe','1');storage=localStorage.getItem('kt3-test-probe')==='1';localStorage.removeItem('kt3-test-probe');if(storage){el('memo').value=localStorage.getItem('kt3-memo')||'';el('target').value=localStorage.getItem('kt3-target')||'';}}catch(e){}
+if(el('target').value)countdown();
+el('save').onclick=function(){put('saveStatus',save('kt3-memo',el('memo').value)?'已保存到本机':'本地保存失败；请勿关闭页面');report('save');};
+el('setDate').onclick=function(){if(countdown()){save('kt3-target',el('target').value);report('date');}};
+el('tap').onclick=function(){taps++;put('tap','点击测试：'+taps);report('tap');};
+el('reload').onclick=function(){window.location.reload();};
+var audioPending=false,recordStarted=0,audioTimer=null,pollDelay=15000;
+function audioView(s){
+ pollDelay=s.busy?2000:15000;
+ var labels={idle:'可以开始录音。',connecting:'正在连接麦克风，请稍候…',recording:'正在录音，请说话。',restoring:'录音结束，正在恢复耳机播放…',complete:'已完成，耳机播放已恢复。',playing:'正在耳机中回放…',error:'操作未完成：'+(s.error||'请检查耳机和 USB 连接。')};
+ if(s.state==='recording'){if(!recordStarted)recordStarted=new Date().getTime();labels.recording+=' '+Math.min(15,Math.floor((new Date().getTime()-recordStarted)/1000))+' / 15 秒';}else recordStarted=0;
+ put('audioStatus',(labels[s.state]||s.state)+(s.available&&s.state==='complete'?' 可点击回放录音。':''));
+ el('duplex').disabled=!!s.busy||!s.available;el('record').disabled=!!s.busy;el('audioTest').disabled=!!s.busy;el('playRecord').disabled=!!s.busy||!s.available;el('stopRecord').disabled=s.state!=='recording';
+}
+function audioRequest(action,method){
+ if(audioPending)return;audioPending=true;
+ var a=new XMLHttpRequest(),ended=false;
+ function finish(){if(ended)return;ended=true;clearTimeout(timeout);audioPending=false;
+  if(a.status>=200&&a.status<300||a.status===409){try{audioView(JSON.parse(a.responseText));}catch(e){put('audioStatus','无法读取服务状态。');}}
+  else put('audioStatus','服务连接中断，请稍后重试；已启动的录音仍有超时恢复保护。');
+  clearTimeout(audioTimer);audioTimer=setTimeout(function(){audioRequest('status','GET');},pollDelay);
+ }
+ a.open(method,'api/audio/'+action,true);if(method==='POST')a.setRequestHeader('X-KT3-Token',token);a.onreadystatechange=function(){if(a.readyState===4)finish();};
+ var timeout=setTimeout(function(){a.abort();finish();},45000);a.send(null);
+}
+el('duplex').onclick=function(){audioRequest('duplex','POST');};
+el('record').onclick=function(){audioRequest('record','POST');};
+el('stopRecord').onclick=function(){audioRequest('stop','POST');};
+el('playRecord').onclick=function(){audioRequest('play','POST');};
+el('audioTest').onclick=function(){audioRequest('test','POST');};
+audioRequest('status','GET');
+function menu(action){var x=new XMLHttpRequest();x.open('POST','api/menu/'+action,true);x.setRequestHeader('X-KT3-Token',token);x.onreadystatechange=function(){if(x.readyState===4)put('menuStatus',x.status===202?'指令已发送。录音时请等待恢复完成再切换。':'操作暂不可用，请等待录音结束。');};x.send(null);}
+el('rollback').onclick=function(){menu('rollback');};
+el('library').onclick=function(){menu('library');};el('settings').onclick=function(){menu('settings');};el('pair').onclick=function(){menu('pair');};el('connect').onclick=function(){menu('connect');};
+function devices(){var x=new XMLHttpRequest();x.open('GET','api/devices',true);x.onreadystatechange=function(){if(x.readyState!==4||x.status!==200)return;var d=JSON.parse(x.responseText),s=el('devices');while(s.firstChild)s.removeChild(s.firstChild);for(var i=0;i<d.devices.length;i++){var o=document.createElement('option');o.value=d.devices[i].address;o.textContent=d.devices[i].name;o.selected=o.value===d.selected;s.appendChild(o);}};x.send(null);}
+el('refreshDevices').onclick=devices;el('selectDevice').onclick=function(){var x=new XMLHttpRequest();x.open('POST','api/select',true);x.setRequestHeader('X-KT3-Token',token);x.onreadystatechange=function(){if(x.readyState===4)put('menuStatus',x.status===200?'已选择录音耳机。':'选择失败，请结束录音后重试。');};x.send(JSON.stringify({address:el('devices').value}));};devices();
+if(window.location.search.indexOf('focus=voice')>=0)setTimeout(function(){el('voice').scrollIntoView();},500);
+status();report('load');
+var ap=document.createElement('audio'), ai=new Image();beacons.push(ai);
+ai.src='cgi-bin/report.sh?action=audio-probe&audio='+typeof ap.play+'&wav='+encodeURIComponent(ap.canPlayType?ap.canPlayType('audio/wav'):'unsupported')+'&mp3='+encodeURIComponent(ap.canPlayType?ap.canPlayType('audio/mpeg'):'unsupported')+'&gum='+((navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)||navigator.getUserMedia||navigator.webkitGetUserMedia?'1':'0')+'&bluetooth='+(navigator.bluetooth?'1':'0');
+try{var x=new XMLHttpRequest();x.open('GET','probe.txt?t='+new Date().getTime(),true);x.onreadystatechange=function(){if(x.readyState===4){xhrStatus=x.status===200&&x.responseText.indexOf('KT3_OK')>=0?'正常':'失败 '+x.status;status();report('xhr');}};x.send(null);}catch(e){xhrStatus='不支持';status();report('xhr');}
+})();
+</script></body></html>
