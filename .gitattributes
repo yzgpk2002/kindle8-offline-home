@@ -7,3 +7,4 @@
 *.lua text eol=lf
 *.json text eol=lf
 *.png binary
+releases/2026-11-06-continuous-state3/*.py -text
